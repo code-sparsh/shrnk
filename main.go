@@ -5,8 +5,14 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+	"sync"
+	"net/url"
 )
 
+type urlStore struct {
+	urls map[string]string
+	mu   sync.RWMutex // Mutex for thread-safe access to the map
+}
 
 const shortCodeLength = 7
 
@@ -28,9 +34,31 @@ func main () {
 	var url string 
 	fmt.Scanln(&url)
 
-	shortCode := generateShortCode()
-	fmt.Printf("Shortened URL: http://short.url/%s\n", shortCode)
+	store := urlStore{
+		urls: make(map[string]string),
+	}
 
+	shortCode, err := store.storeURL(url)
+
+	if err != nil {
+		fmt.Printf("Failed to store URL: %v\n", err)
+		return
+	}
+	fmt.Printf("Shortened URL: http://short.url/%s\n", shortCode)
 
 }
 
+func (s *urlStore) storeURL(longURL string) (string, error) {
+
+	// if the URL is invalid, return an error
+	if _, err := url.ParseRequestURI(longURL); err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+
+	shortURL := generateShortCode()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.urls[shortURL] = longURL
+
+	return shortURL, nil
+}
