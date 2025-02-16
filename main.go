@@ -18,7 +18,7 @@ type ShortenResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-func shortenHandler(store *utils.URLStore) http.HandlerFunc {
+func shortenHandler(DB *utils.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -37,7 +37,7 @@ func shortenHandler(store *utils.URLStore) http.HandlerFunc {
 			return
 		}
 
-		shortCode, err := store.StoreURL(req.URL)
+		shortCode, err := DB.StoreURL(req.URL)
 		if err != nil {
 			http.Error(w, "Failed to store URL", http.StatusInternalServerError)
 			return
@@ -52,13 +52,13 @@ func shortenHandler(store *utils.URLStore) http.HandlerFunc {
 }
 
 
-func redirectHandler(store *utils.URLStore) http.HandlerFunc {
+func redirectHandler(DB *utils.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		shortURL := r.URL.Path
 
 		shortCode := strings.Split(shortURL, "/")[1]
 
-		longURL, err := store.RetrieveURL(shortCode)
+		longURL, err := DB.RetrieveURL(shortCode)
 		if err != nil {
 			http.Error(w, "URL Not found", http.StatusNotFound)
 			return
@@ -67,15 +67,20 @@ func redirectHandler(store *utils.URLStore) http.HandlerFunc {
 		http.Redirect(w, r, longURL, http.StatusMovedPermanently)
 	}
 }
+
 func main() {
 
-	store := utils.NewURLStore()
+	DB := utils.NewDB()
+	defer DB.SQL.Close()
 
-	http.HandleFunc("/shorten", shortenHandler(store))
-	http.HandleFunc("/", redirectHandler(store))
+	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "Hello World") })
+	http.HandleFunc("/shorten", shortenHandler(DB))
+	http.HandleFunc("/", redirectHandler(DB))
+
 
 	fmt.Println("Server starting on http://localhost:8080")
 	err := http.ListenAndServe(":8080", nil)
+
 	if err != nil {
 		fmt.Println("Server error:", err)
 	}

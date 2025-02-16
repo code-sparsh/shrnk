@@ -2,25 +2,37 @@ package utils
 
 import (
 	"fmt"
-	"sync"
 	"net/url"
+	"database/sql"
+	"log"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 
-type URLStore struct {
-	urls map[string]string
-	mu   sync.RWMutex // Mutex for thread-safe access to the map
+type DB struct {
+	SQL *sql.DB
 }
 
 
-func NewURLStore() *URLStore {
-	return &URLStore{
-		urls: make(map[string]string),
+func NewDB() *DB {
+	db,err := sql.Open("mysql", "sparsh:1234@tcp(localhost:3306)/shrtn")
+
+	if err != nil {
+		log.Fatal("Error opening database: ", err)
 	}
+
+	// ping 
+	if err := db.Ping(); err != nil {
+		log.Fatal("Database connection failed", err)
+	}
+
+	fmt.Println("Connected to the database successfully!")
+	return &DB{SQL: db}
 }
 
 
-func (s *URLStore) StoreURL(longURL string) (string, error) {
+func (DB *DB) StoreURL(longURL string) (string, error) {
 
 	// if the URL is invalid, return an error
 	if _, err := url.ParseRequestURI(longURL); err != nil {
@@ -28,21 +40,29 @@ func (s *URLStore) StoreURL(longURL string) (string, error) {
 	}
 
 	shortCode := generateShortCode()
-	
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.urls[shortCode] = longURL
 
+	_, err := DB.SQL.Exec("INSERT INTO url (shortCode, longURL) VALUES(?,?)", shortCode, longURL)
+	
+	if(err != nil) {
+		log.Println("Failed to insert URL in database: ", err)
+		return "", err
+	}
+	
 	return shortCode, nil
 }
 
-func (s *URLStore) RetrieveURL (shortURL string) (string, error) {
+func (DB *DB) RetrieveURL (shortCode string) (string, error) {
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	longURL, ok := s.urls[shortURL]
-	if !ok {
-		return "", fmt.Errorf("short URL not found")
+	var longURL string
+
+	err := DB.SQL.QueryRow("SELECT longURL from url WHERE shortCode = ?", shortCode).Scan(&longURL)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("shortURL not found")
+		}
+		return "", fmt.Errorf("database error: %v", err)
 	}
+
 	return longURL, nil
 }
