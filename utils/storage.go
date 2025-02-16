@@ -27,12 +27,13 @@ func (s *URLStore) StoreURL(longURL string) (string, error) {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
 
-	shortURL := generateShortCode()
+	shortCode := generateShortCode()
+	
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.urls[shortURL] = longURL
+	s.urls[shortCode] = longURL
 
-	return shortURL, nil
+	return shortCode, nil
 }
 
 func (s *URLStore) RetrieveURL (shortURL string) (string, error) {

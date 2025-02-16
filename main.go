@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/code-sparsh/shrnk/utils"
 )
@@ -50,27 +51,32 @@ func shortenHandler(store *utils.URLStore) http.HandlerFunc {
 	}
 }
 
+
+func redirectHandler(store *utils.URLStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		shortURL := r.URL.Path
+
+		shortCode := strings.Split(shortURL, "/")[1]
+
+		longURL, err := store.RetrieveURL(shortCode)
+		if err != nil {
+			http.Error(w, "URL Not found", http.StatusNotFound)
+			return
+		}
+
+		http.Redirect(w, r, longURL, http.StatusMovedPermanently)
+	}
+}
 func main() {
 
 	store := utils.NewURLStore()
 
 	http.HandleFunc("/shorten", shortenHandler(store))
+	http.HandleFunc("/", redirectHandler(store))
 
 	fmt.Println("Server starting on http://localhost:8080")
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		fmt.Println("Server error:", err)
 	}
-
-	fmt.Println("Enter the URL to shorten:")
-	var url string
-	fmt.Scanln(&url)
-
-	shortCode, err := store.StoreURL(url)
-
-	if err != nil {
-		fmt.Printf("Failed to store URL: %v\n", err)
-		return
-	}
-	fmt.Printf("Shortened URL: http://short.url/%s\n", shortCode)
 }
